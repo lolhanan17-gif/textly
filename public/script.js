@@ -53,7 +53,7 @@ const zooms = [.2, .35, .5, .75, 1, 1.25, 1.5, 1.6, 1.75, 2, 2.5, 3, 4];
 const maxPasteLimit = 500;
 const placeholderChange = {};
 const placeholderStates = {};
-var socket;
+var socket = {send: () => {}};
 var lineX = [0, 0];
 var cursorCoords = null;
 var zoomAt = 4;
@@ -437,6 +437,29 @@ addEventListener("mousemove", function(e) {
         update = 1;
     }
 });
+addEventListener("touchmove", function(e) {
+    e.clientX = e.changedTouches[0].clientX;
+    e.clientY = e.changedTouches[0].clientY;
+    if (!(doing == "prot" && (e.ctrlKey || e.shiftKey))) {
+        pan[0] += prevMousePos[0] - e.clientX;
+        pan[1] += prevMousePos[1] - e.clientY;
+        update = 1;
+    }
+    prevMousePos[0] = e.clientX;
+    prevMousePos[1] = e.clientY;
+    if(doing == "prot" && (e.ctrlKey || e.shiftKey) && [1, 2].includes(e.buttons)) {
+        const data = [...getPos(e.clientX, e.clientY), e.buttons === 2 ? 0 : 1];
+        let overlaps;
+        toProt.forEach(function(prot, index) {
+            if(prot.slice(0, 4).join(",") == data.slice(0, 4).join(",")) {
+                if(e.shiftKey) delete toProt[index]; else overlaps = index;
+            }
+        });
+        if (!e.shiftKey) if(typeof overlaps == "number") toProt[overlaps] = data; else toProt.push(data);
+        tiles[data[0] + "," + data[1]].redraw = true;
+        update = 1;
+    }
+});
 addEventListener("load", function() {
     update = 1;
 });
@@ -541,6 +564,8 @@ document.getElementById("import").addEventListener("click", function() {
 });
 zoomElm.addEventListener("input", function() {
     zoomAt = zoomElm.value - 0;
+    pan[0] /= zoom / zooms[zoomAt];
+    pan[1] /= zoom / zooms[zoomAt];
     zoom = zooms[zoomAt];
     onClientChange();
     refresh();
@@ -551,6 +576,10 @@ function connect() {
     queuedWritesChars = {};
     let message;
     m.showModal();
+    if(navigator.userAgentData.mobile && !confirm("I do not recommend using this site on your mobile at all, press OK to play anyway")) {
+        m.innerHTML = "Cancelled";
+        return;
+    }
     socket = new WebSocket((location.protocol == "https:" ? "wss://" : "ws://") + location.host + "/ws" + location.search);
     socket.onopen = function() {
         m.close();

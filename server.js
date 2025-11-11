@@ -5,7 +5,7 @@ const path = require('path');
 const JsonDB = require("node-json-db").JsonDB;
 const Config = require("node-json-db").Config;
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 10000;
 const adminKey = process.env.ADMIN_TOKEN;
 //app.use(express.json());
 
