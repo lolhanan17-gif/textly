@@ -1,0 +1,41 @@
+@font-face {
+    font-family: "Fixedsys";
+    src: url('/fonts/fixedsys.ttf');
+}
+body {
+    margin: 0px;
+    overflow: hidden;
+    background-image: url(img/background.png);
+    background-size: 16px;
+    image-rendering: pixelated;
+    font-family: "Fixedsys";
+    font-size: 20px;
+}
+#canvas {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    cursor: text;
+}
+#ta {
+    position: absolute;
+    top: -1000px;
+    left: -1000px;
+}
+#coords {
+    position: absolute;
+    background-color: #abefcd;
+    user-select: none;
+    bottom: 0px;
+    left: 0px;
+}
+#menu {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+}
+#done {
+    position: absolute;
+    bottom: 0px;
+    right: 0px;
+}
