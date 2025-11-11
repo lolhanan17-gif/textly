@@ -51,6 +51,7 @@ wsServer.on("connection", function(e, req) {
         return;
     }
     ips[ip].sockets++;
+    broadcast({kind: "online", online: [...wsServer.clients].length});
     e.isAdmin = req.url.includes(adminKey); // very stupid way
     e.edits = [];
     e.cps = e.isAdmin ? Infinity : config.rateLimit[0];
@@ -182,6 +183,7 @@ wsServer.on("connection", function(e, req) {
     });
     e.on("close", function() {
         ips[ip].sockets--;
+        broadcast({kind: "online", online: [...wsServer.clients].length});
     });
 });
 function broadcast(b, exclude) {

@@ -11,6 +11,18 @@
     <textarea id="ta" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></textarea>
     <div id="coords">X: 0 Y: 0</div>
     <div id="menu">
+        <button id="togglestyles">Styles</button>
+        <div id="styles" style="display: none;">
+            Background: <input id="style_bg" type="color" value="#ffffff"><br>
+            Protection background: <input id="style_prot_bg" type="color" value="#abcdef"><br>
+            Queued: <input id="style_queue" type="color" value="#e4abef"><br>
+            Default text: <input id="style_text" type="color" value="#000000"><br>
+            Protected text: <input id="style_prot_text" type="color" value="#000000"><br>
+            Cursor: <input id="style_cursor" type="color" value="#ffff00"><br>
+            Other cursor: <input id="style_guest_cursor" type="color" value="#d1d17d"><br>
+            Protect (admin only): <input id="style_prot" type="color" value="#abefab"><br>
+            Unprotect (admin only): <input id="style_unprot" type="color" value="#ef8989"><br>
+        </div>
         <button id="placeholder">Placeholder</button>
         <label><input id="grid" type="checkbox">Grid</label>
         <input id="zoom" type="range" min="0" max="12" value="4">

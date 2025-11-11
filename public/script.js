@@ -25,17 +25,7 @@ const tileRenders = {};
 var loading = [];
 var queuedWrites = {};
 var queuedWritesChars = {};
-const styles = {
-    bg: "#ffffff",
-    prot_bg: "#abcdef",
-    queue: "#e4abef",
-    text: "#000000",
-    prot_text: "#000000",
-    cursor: "#ffff00",
-    guest_cursor: "#d1d17d",
-    prot: "#abefab",
-    unprot: "#ef8989"
-};
+const styles = {};
 const client = {
     chunkSize: [16, 8],
     charSize: [10, 20],
@@ -55,7 +45,7 @@ const placeholderChange = {};
 const placeholderStates = {};
 var socket = {send: () => {}};
 var lineX = [0, 0];
-var cursorCoords = null;
+var cursorCoords = [0, 0, 0, 0];
 var zoomAt = 4;
 var panning = false;
 var zoom = 1;
@@ -64,6 +54,7 @@ var charCount = 1;
 var lastPaste = 0;
 var doing = "";
 var toProt = [];
+var online;
 function resize() {
     c.width = innerWidth;
     c.height = innerHeight;
@@ -101,7 +92,7 @@ function frame() {
             if(tileRenders[pos]) q.putImageData(tileRenders[pos], x, y);
         });
         if(tilesToLoad.length) send({kind: "tiles", tiles: tilesToLoad}, socket);
-        if(cursorCoords) co.innerHTML = `X: ${cursorCoords[0] * cl.ch[0] + cursorCoords[2]} Y: ${cursorCoords[1] * cl.ch[1] + cursorCoords[3]}`;
+        if(cursorCoords) co.innerHTML = online + ` Player${online !== 1 ? "s" : ""} online<br>X: ${cursorCoords[0] * cl.ch[0] + cursorCoords[2]} Y: ${cursorCoords[1] * cl.ch[1] + cursorCoords[3]}`;
         update = 0;
     }
     requestAnimationFrame(frame);
@@ -574,13 +565,17 @@ zoomElm.addEventListener("input", function() {
     onClientChange();
     refresh();
 });
+document.getElementById("togglestyles").addEventListener("click", function() {
+    const elm = document.getElementById("styles");
+    elm.style.display = elm.style.display ? null : "none";
+});
 function connect() {
     tiles = {};
     queuedWrites = {};
     queuedWritesChars = {};
     let message;
     m.showModal();
-    if(navigator.userAgentData.mobile && !confirm("I do not recommend using this site on your mobile at all, press OK to play anyway")) {
+    if(navigator.userAgentData && navigator.userAgentData.mobile && !confirm("I do not recommend using this site on your mobile at all, press OK to play anyway")) {
         m.innerHTML = "Cancelled";
         return;
     }
@@ -654,6 +649,7 @@ function connect() {
             alert("Copied text to clipboard");
         }
         if(kind == "closed") message = data.msg;
+        if(kind == "online") online = data.online;
         update = 1;
     };
     socket.onclose = function() {
@@ -671,4 +667,13 @@ function connect() {
 function send(data, s) {
     if(s && s.readyState === s.OPEN) s.send(JSON.stringify(data));
 }
+document.getElementById("styles").childNodes.forEach(function(style) {
+    if(!style.id) return;
+    styles[style.id.replace("style_", "")] = style.value;
+    style.addEventListener("input", function() {
+        styles[style.id.replace("style_", "")] = style.value;
+        refresh();
+        update = 1;
+    });
+});
 connect();
