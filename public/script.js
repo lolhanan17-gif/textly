@@ -437,6 +437,10 @@ addEventListener("mousemove", function(e) {
         update = 1;
     }
 });
+addEventListener("touchstart", function(e) {
+    prevMousePos[0] = e.changedTouches[0].clientX;
+    prevMousePos[1] = e.changedTouches[0].clientY;
+})
 addEventListener("touchmove", function(e) {
     e.clientX = e.changedTouches[0].clientX;
     e.clientY = e.changedTouches[0].clientY;
