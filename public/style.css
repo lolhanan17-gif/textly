@@ -47,6 +47,7 @@ body {
     height: 250px;
     word-wrap: break-word;
     overflow: auto;
+    width: 364px;
 }
 #chatbar {
     width: 300px;
