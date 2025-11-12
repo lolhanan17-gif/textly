@@ -43,6 +43,7 @@ const zooms = [.2, .35, .5, .75, 1, 1.25, 1.5, 1.6, 1.75, 2, 2.5, 3, 4];
 const maxPasteLimit = 500;
 const placeholderChange = {};
 const placeholderStates = {};
+var cursors = {};
 var socket = {send: () => {}};
 var lineX = [0, 0];
 var cursorCoords = [0, 0, 0, 0];
@@ -138,6 +139,7 @@ function moveCursor(dir) {
         }
     }
     renderCursorTile();
+    sendCursor();
     update = 1;
 }
 function writeChar(char, doNotMoveCursor, erasePlaceholder) {
@@ -254,6 +256,14 @@ function drawTile(pos) {
         toProt.forEach(function(prot) {
             if([prot[0], prot[1], prot[2], prot[3]].join(",") == [tx, ty, ...offset].join(",")) {
                 q2.fillStyle = styles[prot[4] ? "prot" : "unprot"];
+                doDraw = true;
+            }
+        });
+        Object.keys(cursors).forEach(function(cursor) {
+            if(cursor == client.id) return;
+            const coords = cursors[cursor];
+            if(coords[0] === tx && coords[1] === ty && coords[2] === offset[0] && coords[3] === offset[1]) {
+                q2.fillStyle = styles.guest_cursor;
                 doDraw = true;
             }
         });
@@ -384,6 +394,23 @@ function placeholderNames(pos) {
     });
     return array;
 }
+function sendCursor() {
+    if(cursorCoords) send({kind: "cursor", pos: cursorCoords}, socket);
+}
+function sendChat() {
+    const chatbar = document.getElementById("chatbar");
+    send({kind: "chat", nick: localStorage.getItem("nick"), msg: chatbar.value}, socket);
+    chatbar.value = "";
+}
+function addChat(str) {
+    const chat = document.getElementById("chatbox");
+    const elm = document.createElement("div");
+    elm.append(str);
+    const cr = chat.getBoundingClientRect();
+    const doScroll = chat.scrollTop + cr.height >= chat.scrollHeight;
+    chat.appendChild(elm);
+    if(doScroll) chat.scrollTop = chat.scrollHeight;
+}
 c.addEventListener("mousedown", function(e) {
     e.preventDefault();
     panning = true;
@@ -392,6 +419,7 @@ c.addEventListener("click", function(e) {
     ta.focus();
     renderCursorTile();
     cursorCoords = getPos(e.clientX, e.clientY);
+    sendCursor();
     renderCursorTile();
     setLineX();
     update = 1;
@@ -431,7 +459,7 @@ addEventListener("mousemove", function(e) {
 addEventListener("touchstart", function(e) {
     prevMousePos[0] = e.changedTouches[0].clientX;
     prevMousePos[1] = e.changedTouches[0].clientY;
-})
+});
 addEventListener("touchmove", function(e) {
     e.clientX = e.changedTouches[0].clientX;
     e.clientY = e.changedTouches[0].clientY;
@@ -537,6 +565,9 @@ document.getElementById("per").addEventListener("change", function(e) {
 document.getElementById("cep").addEventListener("change", function(e) {
     send({kind: "config", canEditPlaceholders: e.target.checked}, socket);
 });
+document.getElementById("cc").addEventListener("change", function(e) {
+    send({kind: "config", canChat: e.target.checked}, socket);
+});
 document.getElementById("placeholder").addEventListener("click", function() {
     if(doing) return;
     document.getElementById("done").style.display = null;
@@ -569,7 +600,18 @@ document.getElementById("togglestyles").addEventListener("click", function() {
     const elm = document.getElementById("styles");
     elm.style.display = elm.style.display ? null : "none";
 });
+document.getElementById("send").addEventListener("click", sendChat);
+document.getElementById("chatbar").addEventListener("keydown", function(e) {
+    if(e.key == "Enter") sendChat();
+})
+document.getElementById("nickname").addEventListener("input", function(e) {
+    if(e.target.value) localStorage.setItem("nick", e.target.value); else localStorage.removeItem("nick");
+});
+ta.addEventListener("copy", function() {
+    if(cursorCoords) navigator.clipboard.writeText(getChar(...cursorCoords));
+});
 function connect() {
+    cursors = {};
     tiles = {};
     queuedWrites = {};
     queuedWritesChars = {};
@@ -596,15 +638,18 @@ function connect() {
             client.chunkSize[1] = data.chunkSize[1];
             client.pasteLimit = data.pasteLimit;
             if(typeof data.isAdmin != "undefined") client.isAdmin = data.isAdmin;
+            if(typeof data.id != "undefined") client.id = data.id;
             client.fontSize = data.fontSize;
             document.getElementById("amount").value = data.rateLimit[0];
             document.getElementById("per").value = data.rateLimit[1];
             document.getElementById("cep").checked = data.canEditPlaceholders;
+            document.getElementById("cc").checked = data.canChat;
             const placeholderOption = data.canEditPlaceholders || client.isAdmin;
             document.getElementById("placeholder").style.display = placeholderOption ? null : "none";
             if(doing == "placeholder" && !placeholderOption) document.getElementById("done").click();
             onClientChange();
             if(data.isAdmin) document.getElementById("admin_panel").style.display = null;
+            if(data.cursors) cursors = data.cursors;
         }
         if(kind == "tiles") {
             Object.keys(data.tiles).forEach(function(pos) {
@@ -650,6 +695,20 @@ function connect() {
         }
         if(kind == "closed") message = data.msg;
         if(kind == "online") online = data.online;
+        if(kind == "cursor") {
+            if(cursors[data.id]) {
+                const str = cursors[data.id][0] + "," + cursors[data.id][1];
+                if(tiles[str]) tiles[str].redraw = true;
+            }
+            if(data.pos) {
+                cursors[data.id] = data.pos;
+                const str = data.pos[0] + "," + data.pos[1];
+                if(tiles[str]) tiles[str].redraw = true;
+            } else delete cursors[data.id];
+        }
+        if(kind == "chat") {
+            addChat(`${data.admin ? "[ADMIN] " : ""}[${data.id}]${data.nick ? " " + data.nick : ""}: ${data.msg}`);
+        }
         update = 1;
     };
     socket.onclose = function() {
@@ -676,4 +735,5 @@ document.getElementById("styles").childNodes.forEach(function(style) {
         update = 1;
     });
 });
+document.getElementById("nickname").value = localStorage.getItem("nick");
 connect();

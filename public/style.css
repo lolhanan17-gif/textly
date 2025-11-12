@@ -22,12 +22,15 @@ body {
     top: -1000px;
     left: -1000px;
 }
-#coords {
+#chat {
     position: absolute;
-    background-color: #abefcd;
-    user-select: none;
     bottom: 0px;
     left: 0px;
+}
+#coords {
+    background-color: #abefcd;
+    user-select: none;
+    width: fit-content;
 }
 #menu {
     position: absolute;
@@ -38,4 +41,19 @@ body {
     position: absolute;
     bottom: 0px;
     right: 0px;
+}
+#chatbox {
+    background-color: lightpink;
+    height: 250px;
+    word-wrap: break-word;
+    overflow: auto;
+}
+#chatbar {
+    width: 300px;
+}
+button, input[type="text"], input[type="number"] {
+    font-family: "Fixedsys";
+    font-size: 20px;
+    background-color: aqua;
+    outline: none;
 }

@@ -9,7 +9,11 @@
 <body>
     <canvas id="canvas"></canvas>
     <textarea id="ta" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false"></textarea>
-    <div id="coords">X: 0 Y: 0</div>
+    <div id="chat">
+        <div id="coords">X: 0 Y: 0</div>
+        <div id="chatbox"></div>
+        <input id="chatbar" maxlength="500" type="text"><button id="send">Send</button>
+    </div>
     <div id="menu">
         <button id="togglestyles">Styles</button>
         <div id="styles" style="display: none;">
@@ -26,6 +30,7 @@
         <button id="placeholder">Placeholder</button>
         <label><input id="grid" type="checkbox">Grid</label>
         <input id="zoom" type="range" min="0" max="12" value="4">
+        <input id="nickname" type="text" placeholder="nickname" maxlength="20">
         <div id="admin_panel" style="display: none;">
             <button id="download">Download</button>
             <button id="import">Import</button>
@@ -35,11 +40,12 @@
             per
             <input id="per" type="number" min="0" max="3600000">
             <label><input id="cep" type="checkbox">Anyone can edit placeholders</label>
+            <label><input id="cc" type="checkbox">Anyone can chat</label>
             <textarea id="importinput" style="display: none; width: 400px; height: 300px;"></textarea>
         </div>
         <div id="placeholderopts" style="display: none;">
             link id:
-            <input id="placeholderlink">
+            <input id="placeholderlink" type="text">
         </div>
     </div>
     <button id="done" style="display: none;">Done</button>

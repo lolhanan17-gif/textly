@@ -23,6 +23,7 @@ const server = app.listen(port, () => {
 
 const ips = {};
 const max_sockets = 5;
+const cursors = {};
 var db = new JsonDB(new Config("tiles", true, false, '/'));
 var tiles = {};
 var config = {
@@ -31,9 +32,11 @@ var config = {
     fontSize: 20,
     pasteLimit: 200,
     rateLimit: [4, 250],
-    canEditPlaceholders: true
+    canEditPlaceholders: true,
+    canChat: true
 };
 var unsaved = [0, 0];
+var idCount = 1;
 (async function() {
     var data = await db.getData("/");
     if(!data.tiles) db.push("/tiles", tiles);
@@ -52,10 +55,14 @@ wsServer.on("connection", function(e, req) {
     }
     ips[ip].sockets++;
     broadcast({kind: "online", online: [...wsServer.clients].length});
+    e.id = idCount;
+    idCount++;
     e.isAdmin = req.url.includes(adminKey); // very stupid way
     e.edits = [];
     e.cps = e.isAdmin ? Infinity : config.rateLimit[0];
-    send({kind: "load", ...config ,isAdmin: e.isAdmin}, e);
+    send({kind: "load", ...config, cursors ,isAdmin: e.isAdmin, id: e.id}, e);
+    cursors[e.id] = [0, 0, 0, 0];
+    broadcast({kind: "cursor", id: e.id, pos: cursors[e.id]});
     e.on("message", async function(a) {
         var data = {};
         try {
@@ -136,6 +143,15 @@ wsServer.on("connection", function(e, req) {
             });
             send({kind: "tiles", tiles: obj}, e);
         }
+        if(kind == "cursor" && data.pos) {
+            cursors[e.id] = [data.pos[0] || 0, data.pos[1] || 0, data.pos[2] || 0, data.pos[3] || 0];
+            broadcast({kind: "cursor", id: e.id, pos: cursors[e.id]});
+        }
+        if(kind == "chat" && (config.canChat || e.isAdmin) && data.msg) {
+            let msg = (data.msg + "").substring(0, 500).trim();
+            let nick = (data.nick || "").substring(0, 20).trim();
+            if(msg) broadcast({kind: "chat", id: e.id, msg, admin: e.isAdmin, nick});
+        }
         if(e.isAdmin) {
             if(kind == "prot") {
                 const obj = {};
@@ -162,6 +178,7 @@ wsServer.on("connection", function(e, req) {
                 if(typeof data.amount == "number") config.rateLimit[0] = data.amount;
                 if(typeof data.per == "number") config.rateLimit[1] = data.per;
                 if(typeof data.canEditPlaceholders == "boolean") config.canEditPlaceholders = data.canEditPlaceholders;
+                if(typeof data.canChat == "boolean") config.canChat = data.canChat;
                 broadcast({kind: "load", ...config});
                 unsaved[1] = 1;
             }
@@ -175,6 +192,7 @@ wsServer.on("connection", function(e, req) {
                 if(typeof config.pasteLimit == "undefined") config.pasteLimit = 200;
                 if(!config.rateLimit) config.rateLimit = [4, 250];
                 if(typeof config.canEditPlaceholders == "undefined") config.canEditPlaceholders = true;
+                if(typeof config.canChat == "undefined") config.canChat = true;
                 db.push("/", {tiles, config});
                 broadcast({kind: "load", ...config});
                 broadcast({kind: "clear"});
@@ -183,7 +201,9 @@ wsServer.on("connection", function(e, req) {
     });
     e.on("close", function() {
         ips[ip].sockets--;
+        delete cursors[e.id];
         broadcast({kind: "online", online: [...wsServer.clients].length});
+        broadcast({kind: "cursor", id: e.id});
     });
 });
 function broadcast(b, exclude) {
