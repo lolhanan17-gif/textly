@@ -369,9 +369,10 @@ function textOn(tx, ty, x, y, linkId) {
     if(!tiles[str]) return;
     const placeholder = tiles[str].properties.placeholder;
     if(typeof linkId == "undefined" && placeholder && placeholder[i]) linkId = placeholder[i][1];
-    const tileKeys = Object.keys(tiles);
+    const tileKeys = Object.keys(tiles); // or getVisibleChunks()
     for (let t = 0; t < tileKeys.length; t++) {
         const tile = tileKeys[t];
+        if(!tiles[tile]) continue;
         let [tx2, ty2] = tile.split(",");
         tx2 = parseInt(tx2);
         ty2 = parseInt(ty2);
@@ -508,7 +509,7 @@ ta.addEventListener("keydown", function(e) {
         moveCursor(e.keyCode - 37);
         setLineX();
     }
-    if(e.code == "Backspace") {
+    if(e.code == "Backspace" || e.keyCode === 8) {
         moveCursor(0);
         const id = writeChar(" ", true, doing == "placeholder");
         if(id) send({kind: "write", edits: [[...queuedWrites[id], doing == "placeholder" ? false : " ", id, doing == "placeholder"]]}, socket);
