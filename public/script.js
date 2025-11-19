@@ -56,6 +56,41 @@ var lastPaste = 0;
 var doing = "";
 var toProt = [];
 var online;
+
+const regionSelections = [];
+var selecting = null;
+class RegionSelection {
+    constructor(call) {
+        this.color = "#abcdef";
+        this.tileSelection = false;
+        this.selecting = null;
+        this.selectingHold = null;
+        this.coords = [0, 0, 0, 0];
+        this.call = call;
+    }
+    startSelection() {
+        selecting = this;
+    }
+}
+const copySelection = new RegionSelection(function(e) {
+    let str = "";
+    for (let y = 0; y < e[5]; y++) {
+        for (let x = 0; x < e[4]; x++) {
+            const i = [e[0], e[1], e[2] + x, e[3] + y];
+            while(i[2] >= cl.ch[0]) {
+                i[2] -= cl.ch[0];
+                i[0]++;
+            }
+            while(i[3] >= cl.ch[1]) {
+                i[3] -= cl.ch[1];
+                i[1]++;
+            }
+            str += getChar(...i);
+        }
+        if(y + 1 < e[5]) str += "\n";
+    }
+    navigator.clipboard.writeText(str);
+});
 function resize() {
     c.width = innerWidth;
     c.height = innerHeight;
@@ -92,6 +127,36 @@ function frame() {
             ];
             if(tileRenders[pos]) q.putImageData(tileRenders[pos], x, y);
         });
+        if(selecting) {
+            q.fillStyle = selecting.color;
+            const [x, y] = [
+                selecting.coords[0] * cl.ch[0] * cl.cr[0] * zoom - Math.floor(pan[0]) + center[0],
+                selecting.coords[1] * cl.ch[1] * cl.cr[1] * zoom - Math.floor(pan[1]) + center[1],
+            ];
+            if(selecting.tileSelection) q.fillRect(
+                x, y,
+                cl.cr[0] * cl.ch[0] * zoom,
+                cl.cr[1] * cl.ch[1] * zoom
+            ); else q.fillRect(
+                x + selecting.coords[2] * cl.cr[0] * zoom,
+                y + selecting.coords[3] * cl.cr[1] * zoom,
+                cl.cr[0] * zoom, cl.cr[1] * zoom
+            );
+            if(selecting.selecting) {
+                const [x2, y2] = [
+                    selecting.selecting[0] * cl.ch[0] * cl.cr[0] * zoom - Math.floor(pan[0]) + center[0],
+                    selecting.selecting[1] * cl.ch[1] * cl.cr[1] * zoom - Math.floor(pan[1]) + center[1],
+                ];
+                q.globalAlpha = .4;
+                q.fillRect(
+                    x2 + selecting.selecting[2] * cl.cr[0] * zoom,
+                    y2 + selecting.selecting[3] * cl.cr[1] * zoom,
+                    selecting.selecting[4] * cl.cr[0] * zoom,
+                    selecting.selecting[5] * cl.cr[1] * zoom
+                );
+                q.globalAlpha = 1;
+            }
+        }
         if(tilesToLoad.length) send({kind: "tiles", tiles: tilesToLoad}, socket);
         if(cursorCoords) co.innerHTML = online + ` Player${online !== 1 ? "s" : ""} online<br>X: ${cursorCoords[0] * cl.ch[0] + cursorCoords[2]} Y: ${cursorCoords[1] * cl.ch[1] + cursorCoords[3]}`;
         update = 0;
@@ -412,9 +477,28 @@ function addChat(str) {
     chat.appendChild(elm);
     if(doScroll) chat.scrollTop = chat.scrollHeight;
 }
+function percent(value, toPercent) {
+    const chunk = Math.floor(value / toPercent);
+    return value - chunk * toPercent;
+}
 c.addEventListener("mousedown", function(e) {
     e.preventDefault();
-    panning = true;
+    if(selecting) {
+        selecting.selectingHold = getPos(e.clientX, e.clientY);
+        const sh = selecting.selectingHold;
+        const ts = selecting.tileSelection;
+        selecting.selecting = [
+            sh[0], sh[1],
+            ts ? 0 : sh[2],
+            ts ? 0 : sh[3],
+            ts ? cl.ch[0] : 1,
+            ts ? cl.ch[1] : 1
+        ];
+        if(ts) {
+            sh[2] = 0;
+            sh[3] = 0;
+        }
+    } else panning = true;
 });
 c.addEventListener("click", function(e) {
     ta.focus();
@@ -435,6 +519,12 @@ c.addEventListener("click", function(e) {
 });
 addEventListener("mouseup", function(e) {
     panning = false;
+    if(selecting && selecting.selecting) {
+        if(typeof selecting.call == "function") selecting.call(selecting.selecting);
+        selecting.selecting = null;
+        selecting.selectingHold = null;
+        selecting = null;
+    }
 });
 addEventListener("mousemove", function(e) {
     if (panning && !(doing == "prot" && (e.ctrlKey || e.shiftKey))) {
@@ -444,6 +534,30 @@ addEventListener("mousemove", function(e) {
     }
     prevMousePos[0] = e.clientX;
     prevMousePos[1] = e.clientY;
+    if(selecting) {
+        selecting.coords = getPos(e.clientX, e.clientY);
+        if(selecting.selecting) {
+            const newPos = getPos(e.clientX, e.clientY);
+            const sh = selecting.selectingHold;
+            const ts = selecting.tileSelection;
+            let [w, h] = [
+                (newPos[0] * cl.ch[0] + newPos[2]) - (sh[0] * cl.ch[0] + sh[2]),
+                (newPos[1] * cl.ch[1] + newPos[3]) - (sh[1] * cl.ch[1] + sh[3])
+            ];
+            let minus = [w < 0, h < 0];
+            w = Math.abs(w);
+            h = Math.abs(h);
+            selecting.selecting = [
+                sh[0] - (minus[0] ? Math[minus[0] ? "ceil" : "floor"]((w - sh[2]) / cl.ch[0]) : 0),
+                sh[1] - (minus[1] ? Math[minus[1] ? "ceil" : "floor"]((h - sh[3]) / cl.ch[1]) : 0),
+                ts ? 0 : percent(sh[2] - (minus[0] ? w : 0), cl.ch[0]),
+                ts ? 0 : percent(sh[3] - (minus[1] ? h : 0), cl.ch[1]),
+                ts ? cl.ch[0] * (Math[minus[0] ? "ceil" : "floor"](w / cl.ch[0]) + 1): w + 1,
+                ts ? cl.ch[1] * (Math[minus[1] ? "ceil" : "floor"](h / cl.ch[1]) + 1): h + 1
+            ];
+        }
+        update = 1;
+    }
     if(doing == "prot" && (e.ctrlKey || e.shiftKey) && [1, 2].includes(e.buttons)) {
         const data = [...getPos(e.clientX, e.clientY), e.buttons === 2 ? 0 : 1];
         let overlaps;
@@ -513,7 +627,8 @@ ta.addEventListener("keydown", function(e) {
         moveCursor(0);
         const id = writeChar(" ", true, doing == "placeholder");
         if(id) send({kind: "write", edits: [[...queuedWrites[id], doing == "placeholder" ? false : " ", id, doing == "placeholder"]]}, socket);
-    } 
+    }
+    if(e.ctrlKey && e.keyCode === 65) copySelection.startSelection();
 });
 ta.addEventListener("input", function(e) {
     const isPaste = ta.value.length > 1;
