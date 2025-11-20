@@ -47,7 +47,13 @@ var idCount = 1;
 const wsServer = new ws.Server({server, path: "/ws"});
 wsServer.on("connection", function(e, req) {
     var ip = (req.headers["x-forwarded-for"] || "127.0.0.1").split(",")[0];
-    if(!ips[ip]) ips[ip] = {sockets: 0};
+    if(!ips[ip]) ips[ip] = {
+        sockets: 0,
+        msgsAbleToSend: 2,
+        iId: setInterval(() => {
+            ips[ip].msgsAbleToSend = 2;
+        }, 1000)
+    };
     if(ips[ip].sockets >= max_sockets) {
         send({kind: "closed", msg: `Too many tabs open (max is ${max_sockets})`}, e);
         e.close();
@@ -79,15 +85,18 @@ wsServer.on("connection", function(e, req) {
             function applyEdits() {
                 const ids = [];
                 const obj = {};
+                let chars = "";
+                const tilesWritten = [];
                 while (e.cps > 0 && e.edits.length) {
                     const edit = e.edits.shift();
                     if(!edit) continue;
                     ids.push(edit[5]);
+                    if(ips[ip].canvasMuted) continue;
                     let tileX = edit[0];
                     let tileY = edit[1];
                     let charX = edit[2];
                     let charY = edit[3];
-                    let char = edit[4];
+                    let char = ((edit[4] + "") || " ")[0];
                     if(typeof tileX != "number" || isNaN(tileX)) return;
                     if(typeof tileY != "number" || isNaN(tileY)) return;
                     if(typeof charX != "number" || isNaN(charX)) return;
@@ -101,13 +110,21 @@ wsServer.on("connection", function(e, req) {
                     if (edit[6]) {
                         if (config.canEditPlaceholders || e.isAdmin) {
                             if(!tiles[str].properties.placeholder) tiles[str].properties.placeholder = {};
-                            if(char) tiles[str].properties.placeholder[i] = [char[0], edit[7] || "none"];
-                            else delete tiles[str].properties.placeholder[i];
+                            if(char) {
+                                tiles[str].properties.placeholder[i] = [char, edit[7] || "none"];
+                                chars += char;
+                            } else {
+                                delete tiles[str].properties.placeholder[i];
+                                chars += "[DEL]";
+                            }
+                            if(!tilesWritten.includes(str)) tilesWritten.push(str);
                             if(!Object.keys(tiles[str].properties.placeholder).length) delete tiles[str].properties.placeholder;
                         }
                     } else {
                         const array = tiles[str].content.split("");
-                        array[i] = char[0] || " ";
+                        array[i] = char;
+                        chars += char;
+                        if(!tilesWritten.includes(str)) tilesWritten.push(str);
                         for (let t = 0; t < array.length; t++) {
                             if(!array[t]) array[t] = " ";
                         }
@@ -119,7 +136,10 @@ wsServer.on("connection", function(e, req) {
                     unsaved[0] = 1;
                 }
                 if(ids.length) send({kind: "wrote", ids}, e);
-                if(Object.keys(obj).length) broadcast({kind: "tiles", tiles: obj});
+                if(Object.keys(obj).length) {
+                    broadcast({kind: "tiles", tiles: obj});
+                    broadcast({kind: "log", type: "write", chars, tiles: tilesWritten, ip}, null, true);
+                }
             }
             if(!e.iId) applyEdits();
             if(!e.iId && e.edits.length) e.iId = setTimeout(function doApply() {
@@ -147,10 +167,15 @@ wsServer.on("connection", function(e, req) {
             cursors[e.id] = [data.pos[0] || 0, data.pos[1] || 0, data.pos[2] || 0, data.pos[3] || 0];
             broadcast({kind: "cursor", id: e.id, pos: cursors[e.id]});
         }
-        if(kind == "chat" && (config.canChat || e.isAdmin) && data.msg) {
+        if(kind == "chat" && (config.canChat || e.isAdmin) && data.msg && ips[ip].msgsAbleToSend && !ips[ip].muted) {
             let msg = (data.msg + "").substring(0, 500).trim();
             let nick = (data.nick || "").substring(0, 20).trim();
-            if(msg) broadcast({kind: "chat", id: e.id, msg, admin: e.isAdmin, nick});
+            if(msg) {
+                broadcast({kind: "chat", id: e.id, msg, admin: e.isAdmin, nick});
+                const shortMsg = msg.substring(0, 16);
+                broadcast({kind: "log", type: "chat", msg: shortMsg + (msg == shortMsg ? "" : "..."), ip}, null, true);
+            }
+            ips[ip].msgsAbleToSend--;
         }
         if(e.isAdmin) {
             if(kind == "prot") {
@@ -197,18 +222,39 @@ wsServer.on("connection", function(e, req) {
                 broadcast({kind: "load", ...config});
                 broadcast({kind: "clear"});
             }
+            if(kind == "iplist") {
+                const filteredIps = {};
+                Object.keys(ips).forEach(function(ip) {
+                    filteredIps[ip] = {
+                        sockets: ips[ip].sockets,
+                        muted: ips[ip].muted,
+                        canvasMuted: ips[ip].canvasMuted
+                    };
+                });
+                send({kind: "log", type: "list", ips: filteredIps}, e);
+            }
+            if(kind == "action") {
+                if(ips[data.ip]) {
+                    ips[data.ip][data.action] = data.do;
+                    send({kind: "log", type: "response"}, e);
+                }
+            }
         }
     });
     e.on("close", function() {
         ips[ip].sockets--;
+        /*if(!ips[ip].sockets) {
+            clearInterval(ips[ip].iId);
+            delete ips[ip];
+        }*/
         delete cursors[e.id];
         broadcast({kind: "online", online: [...wsServer.clients].length});
         broadcast({kind: "cursor", id: e.id});
     });
 });
-function broadcast(b, exclude) {
+function broadcast(b, exclude, adminOnly) {
     wsServer.clients.forEach(function(client) {
-        if(client != exclude) client.send(JSON.stringify(b));
+        if(client != exclude && (!adminOnly || client.isAdmin)) client.send(JSON.stringify(b));
     });
 }
 function send(m, s) {

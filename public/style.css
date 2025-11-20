@@ -26,6 +26,7 @@ body {
     position: absolute;
     bottom: 0px;
     left: 0px;
+    background-color: #00000040;
 }
 #coords {
     background-color: #abefcd;
@@ -57,4 +58,16 @@ button, input[type="text"], input[type="number"] {
     font-size: 20px;
     background-color: aqua;
     outline: none;
+}
+#admin_logs {
+    width: min-content;
+    background-color: black;
+    color: white;
+    position: absolute;
+}
+#logs {
+    width: 400px;
+    height: 300px;
+    word-wrap: break-word;
+    overflow: auto;
 }

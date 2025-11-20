@@ -9,6 +9,8 @@ const co = document.getElementById("coords");
 const grid = document.getElementById("grid");
 const link = document.getElementById("placeholderlink");
 const zoomElm = document.getElementById("zoom");
+const ipToDo = document.getElementById("iptodo");
+const logs = document.getElementById("logs");
 var tiles = {/*
     "0,1": {
         content: " ".repeat(112) + "suggestion",
@@ -74,6 +76,15 @@ class RegionSelection {
 }
 const copySelection = new RegionSelection(function(e) {
     let str = "";
+    forChars(e, function(i) {
+        str += getChar(...i);
+    }, function(isLast) {
+        if(!isLast) str += "\n";
+    });
+    navigator.clipboard.writeText(str);
+});
+function forChars(e, call, call2) {
+    if(typeof call != "function") return;
     for (let y = 0; y < e[5]; y++) {
         for (let x = 0; x < e[4]; x++) {
             const i = [e[0], e[1], e[2] + x, e[3] + y];
@@ -85,12 +96,11 @@ const copySelection = new RegionSelection(function(e) {
                 i[3] -= cl.ch[1];
                 i[1]++;
             }
-            str += getChar(...i);
+            call(i);
         }
-        if(y + 1 < e[5]) str += "\n";
+        if (typeof call2 == "function") call2(y + 1 >= e[5]);
     }
-    navigator.clipboard.writeText(str);
-});
+}
 function resize() {
     c.width = innerWidth;
     c.height = innerHeight;
@@ -726,6 +736,27 @@ document.getElementById("nickname").addEventListener("input", function(e) {
 ta.addEventListener("copy", function() {
     if(cursorCoords) navigator.clipboard.writeText(getChar(...cursorCoords));
 });
+addEventListener("keydown", function(e) {
+    if(e.ctrlKey && e.keyCode === 71 && selecting) {
+        e.preventDefault();
+        selecting.tileSelection = !selecting.tileSelection;
+    }
+});
+document.getElementById("iplist").addEventListener("click", function() {
+    send({kind: "iplist"}, socket);
+});
+document.getElementById("actionmute").addEventListener("click", function() {
+    send({kind: "action", ip: document.getElementById("iptodo").value, action: "muted", do: true}, socket);
+});
+document.getElementById("actionunmute").addEventListener("click", function() {
+    send({kind: "action", ip: document.getElementById("iptodo").value, action: "muted", do: false}, socket);
+});
+document.getElementById("actioncanvasmute").addEventListener("click", function() {
+    send({kind: "action", ip: document.getElementById("iptodo").value, action: "canvasMuted", do: true}, socket);
+});
+document.getElementById("actioncanvasunmute").addEventListener("click", function() {
+    send({kind: "action", ip: document.getElementById("iptodo").value, action: "canvasMuted", do: false}, socket);
+});
 function connect() {
     cursors = {};
     tiles = {};
@@ -824,6 +855,28 @@ function connect() {
         }
         if(kind == "chat") {
             addChat(`${data.admin ? "[ADMIN] " : ""}[${data.id}]${data.nick ? " " + data.nick : ""}: ${data.msg}`);
+        }
+        if(kind == "log") {
+            const elm = document.createElement("div");
+            if(data.type == "response") elm.append("Successfully done that"); else if(data.type == "list") {
+                Object.keys(data.ips).forEach(function(ip) {
+                    const list = [];
+                    list.push(data.ips[ip].sockets + " sockets");
+                    if(data.ips[ip].muted) list.push("muted");
+                    if(data.ips[ip].canvasMuted) list.push("canvas muted");
+                    elm.append(`${ip}: ${list.join(", ")}`);
+                    elm.appendChild(document.createElement("br"));
+                });
+            } else {
+                elm.append(`${data.ip} ${data.type} ${data.type == "write" ? data.chars.replaceAll(" ", "␣") + " " + data.tiles.join(" ") : data.msg}`);
+                elm.addEventListener("click", function() {
+                    ipToDo.value = data.ip;
+                });
+            }
+            const cr = logs.getBoundingClientRect();
+            const doScroll = logs.scrollTop + cr.height >= logs.scrollHeight;
+            logs.appendChild(elm);
+            if(doScroll) logs.scrollTop = logs.scrollHeight;
         }
         update = 1;
     };
