@@ -757,6 +757,10 @@ document.getElementById("actioncanvasmute").addEventListener("click", function()
 document.getElementById("actioncanvasunmute").addEventListener("click", function() {
     send({kind: "action", ip: document.getElementById("iptodo").value, action: "canvasMuted", do: false}, socket);
 });
+document.getElementById("toggle_admin_logs").addEventListener("click", function() {
+    const elm = document.getElementById("admin_logs");
+    elm.style.display = elm.style.display ? null : "none";
+});
 function connect() {
     cursors = {};
     tiles = {};

@@ -96,13 +96,14 @@ wsServer.on("connection", function(e, req) {
                     let tileY = edit[1];
                     let charX = edit[2];
                     let charY = edit[3];
-                    let char = ((edit[4] + "") || " ")[0];
+                    let char = edit[4];
                     if(typeof tileX != "number" || isNaN(tileX)) return;
                     if(typeof tileY != "number" || isNaN(tileY)) return;
                     if(typeof charX != "number" || isNaN(charX)) return;
                     if(typeof charY != "number" || isNaN(charY)) return;
                     if(charX < 0 || charX >= config.chunkSize[0]) return;
                     if(charY < 0 || charY >= config.chunkSize[1]) return;
+                    if(typeof char != "string" && char !== false) return;
                     const str = tileX + "," + tileY;
                     const i = charX + charY * config.chunkSize[0];
                     if(!tiles[str]) tiles[str] = newTile();
@@ -111,8 +112,8 @@ wsServer.on("connection", function(e, req) {
                         if (config.canEditPlaceholders || e.isAdmin) {
                             if(!tiles[str].properties.placeholder) tiles[str].properties.placeholder = {};
                             if(char) {
-                                tiles[str].properties.placeholder[i] = [char, edit[7] || "none"];
-                                chars += char;
+                                tiles[str].properties.placeholder[i] = [char[0], edit[7] || "none"];
+                                chars += char[0];
                             } else {
                                 delete tiles[str].properties.placeholder[i];
                                 chars += "[DEL]";
@@ -122,8 +123,8 @@ wsServer.on("connection", function(e, req) {
                         }
                     } else {
                         const array = tiles[str].content.split("");
-                        array[i] = char;
-                        chars += char;
+                        array[i] = char[0];
+                        chars += char[0];
                         if(!tilesWritten.includes(str)) tilesWritten.push(str);
                         for (let t = 0; t < array.length; t++) {
                             if(!array[t]) array[t] = " ";
