@@ -57,6 +57,7 @@ var charCount = 1;
 var lastPaste = 0;
 var doing = "";
 var toProt = [];
+var chunksToProt = {};
 var online;
 
 const regionSelections = [];
@@ -87,12 +88,26 @@ const protectSelection = new RegionSelection(function(e, event) {
     forChars(e, function(i) {
         const data = [...i, event.button ? 0 : 1];
         let overlaps;
-        toProt.forEach(function(prot, index) {
+        toProt.forEach(function(prot, index) { // unoptimized but can't do anything about it
             if(prot.slice(0, 4).join(",") == data.slice(0, 4).join(",")) {
-                if(event.shiftKey) delete toProt[index]; else overlaps = index;
+                if(event.shiftKey) {
+                    delete toProt[index];
+                    const str = data[0] + "," + data[1];
+                    const str2 = data[2] + "," + data[3];
+                    if(chunksToProt[str]) {
+                        delete chunksToProt[str][str2];
+                        if(!Object.keys(chunksToProt[str]).length) delete chunksToProt[str];
+                    }
+                } else overlaps = index;
             }
         });
-        if (!event.shiftKey) if(typeof overlaps == "number") toProt[overlaps] = data; else toProt.push(data);
+        if (!event.shiftKey) {
+            if(typeof overlaps == "number") toProt[overlaps] = data; else toProt.push(data);
+            const str = data[0] + "," + data[1];
+            const str2 = data[2] + "," + data[3];
+            if(!chunksToProt[str]) chunksToProt[str] = {};
+            chunksToProt[str][str2] = data[4];
+        }
         tiles[data[0] + "," + data[1]].redraw = true;
     });
     update = 1;
@@ -343,12 +358,17 @@ function drawTile(pos) {
                 doDraw = true;
             }
         });
-        toProt.forEach(function(prot) {
+        const pos2 = offset.join(",");
+        if(chunksToProt[pos] && typeof chunksToProt[pos][pos2] == "number") {
+            q2.fillStyle = styles[chunksToProt[pos][pos2] ? "prot" : "unprot"];
+            doDraw = true;
+        }
+        /*toProt.forEach(function(prot) { // unoptimized
             if([prot[0], prot[1], prot[2], prot[3]].join(",") == [tx, ty, ...offset].join(",")) {
                 q2.fillStyle = styles[prot[4] ? "prot" : "unprot"];
                 doDraw = true;
             }
-        });
+        });*/
         Object.keys(cursors).forEach(function(cursor) {
             if(cursor == client.id) return;
             const coords = cursors[cursor];
@@ -578,21 +598,35 @@ addEventListener("mousemove", function(e) {
                 sh[1] - (minus[1] ? Math[minus[1] ? "ceil" : "floor"]((h - sh[3]) / cl.ch[1]) : 0),
                 ts ? 0 : percent(sh[2] - (minus[0] ? w : 0), cl.ch[0]),
                 ts ? 0 : percent(sh[3] - (minus[1] ? h : 0), cl.ch[1]),
-                ts ? cl.ch[0] * (Math[minus[0] ? "ceil" : "floor"](w / cl.ch[0]) + 1): w + 1,
-                ts ? cl.ch[1] * (Math[minus[1] ? "ceil" : "floor"](h / cl.ch[1]) + 1): h + 1
+                ts ? cl.ch[0] * (Math[minus[0] ? "ceil" : "floor"](w / cl.ch[0]) + 1) : w + 1,
+                ts ? cl.ch[1] * (Math[minus[1] ? "ceil" : "floor"](h / cl.ch[1]) + 1) : h + 1
             ];
         }
         update = 1;
     }
-    if(doing == "prot" && (e.ctrlKey || e.shiftKey) && [1, 2].includes(e.buttons)) {
+    if(doing == "prot" && (e.ctrlKey || e.shiftKey) && [1, 2].includes(e.buttons) && !selecting) {
         const data = [...getPos(e.clientX, e.clientY), e.buttons === 2 ? 0 : 1];
         let overlaps;
         toProt.forEach(function(prot, index) {
             if(prot.slice(0, 4).join(",") == data.slice(0, 4).join(",")) {
-                if(e.shiftKey) delete toProt[index]; else overlaps = index;
+                if(e.shiftKey) {
+                    delete toProt[index];
+                    const str = data[0] + "," + data[1];
+                    const str2 = data[2] + "," + data[3];
+                    if(chunksToProt[str]) {
+                        delete chunksToProt[str][str2];
+                        if(!Object.keys(chunksToProt[str]).length) delete chunksToProt[str];
+                    }
+                } else overlaps = index;
             }
         });
-        if (!e.shiftKey) if(typeof overlaps == "number") toProt[overlaps] = data; else toProt.push(data);
+        if (!e.shiftKey) {
+            if(typeof overlaps == "number") toProt[overlaps] = data; else toProt.push(data);
+            const str = data[0] + "," + data[1];
+            const str2 = data[2] + "," + data[3];
+            if(!chunksToProt[str]) chunksToProt[str] = {};
+            chunksToProt[str][str2] = data[4];
+        }
         tiles[data[0] + "," + data[1]].redraw = true;
         update = 1;
     }
@@ -604,25 +638,11 @@ addEventListener("touchstart", function(e) {
 addEventListener("touchmove", function(e) {
     e.clientX = e.changedTouches[0].clientX;
     e.clientY = e.changedTouches[0].clientY;
-    if (!(doing == "prot" && (e.ctrlKey || e.shiftKey))) {
-        pan[0] += prevMousePos[0] - e.clientX;
-        pan[1] += prevMousePos[1] - e.clientY;
-        update = 1;
-    }
+    pan[0] += prevMousePos[0] - e.clientX;
+    pan[1] += prevMousePos[1] - e.clientY;
+    update = 1;
     prevMousePos[0] = e.clientX;
     prevMousePos[1] = e.clientY;
-    if(doing == "prot" && (e.ctrlKey || e.shiftKey) && [1, 2].includes(e.buttons)) {
-        const data = [...getPos(e.clientX, e.clientY), e.buttons === 2 ? 0 : 1];
-        let overlaps;
-        toProt.forEach(function(prot, index) {
-            if(prot.slice(0, 4).join(",") == data.slice(0, 4).join(",")) {
-                if(e.shiftKey) delete toProt[index]; else overlaps = index;
-            }
-        });
-        if (!e.shiftKey) if(typeof overlaps == "number") toProt[overlaps] = data; else toProt.push(data);
-        tiles[data[0] + "," + data[1]].redraw = true;
-        update = 1;
-    }
 });
 addEventListener("load", function() {
     update = 1;
@@ -682,6 +702,7 @@ document.getElementById("done").addEventListener("click", function(e) {
     if(doing == "prot") {
         if(toProt.length) send({kind: "prot", edits: toProt}, socket);
         toProt = [];
+        chunksToProt = {};
     }
     if(doing == "placeholder") {
         refresh();
