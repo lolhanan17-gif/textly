@@ -83,6 +83,21 @@ const copySelection = new RegionSelection(function(e) {
     });
     navigator.clipboard.writeText(str);
 });
+const protectSelection = new RegionSelection(function(e, event) {
+    forChars(e, function(i) {
+        const data = [...i, event.button ? 0 : 1];
+        let overlaps;
+        toProt.forEach(function(prot, index) {
+            if(prot.slice(0, 4).join(",") == data.slice(0, 4).join(",")) {
+                if(event.shiftKey) delete toProt[index]; else overlaps = index;
+            }
+        });
+        if (!event.shiftKey) if(typeof overlaps == "number") toProt[overlaps] = data; else toProt.push(data);
+        tiles[data[0] + "," + data[1]].redraw = true;
+    });
+    update = 1;
+    document.getElementById("protect").click();
+});
 function forChars(e, call, call2) {
     if(typeof call != "function") return;
     for (let y = 0; y < e[5]; y++) {
@@ -530,10 +545,11 @@ c.addEventListener("click", function(e) {
 addEventListener("mouseup", function(e) {
     panning = false;
     if(selecting && selecting.selecting) {
-        if(typeof selecting.call == "function") selecting.call(selecting.selecting);
+        if(typeof selecting.call == "function") selecting.call(selecting.selecting, e);
         selecting.selecting = null;
         selecting.selectingHold = null;
         selecting = null;
+        update = 1;
     }
 });
 addEventListener("mousemove", function(e) {
@@ -639,6 +655,10 @@ ta.addEventListener("keydown", function(e) {
         if(id) send({kind: "write", edits: [[...queuedWrites[id], doing == "placeholder" ? false : " ", id, doing == "placeholder"]]}, socket);
     }
     if(e.ctrlKey && e.keyCode === 65) copySelection.startSelection();
+    if(e.ctrlKey && e.keyCode === 80 && client.isAdmin) {
+        e.preventDefault();
+        protectSelection.startSelection();
+    }
 });
 ta.addEventListener("input", function(e) {
     const isPaste = ta.value.length > 1;
